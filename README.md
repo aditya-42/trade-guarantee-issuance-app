@@ -26,7 +26,6 @@ cp .env.example .env
 
 ### 3. Change the environment variables to following
 
-# Example:
 ```
 DB_CONNECTION=mysql
 DB_HOST=mysql_db
