@@ -1,68 +1,37 @@
-# Use PHP 8.2 with Nginx for production
-FROM php:8.2-fpm
+# Use PHP 8.x image (or the required version)
+FROM php:8.3-fpm
 
-# Set the working directory
-WORKDIR /var/www
-
-# Install system dependencies, MySQL PDO extension, and Node.js 20.x
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
-    unzip \
     curl \
+    zip \
+    unzip \
     libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
     libonig-dev \
     libxml2-dev \
-    default-mysql-client \
-    && docker-php-ext-install pdo_mysql \
-    && apt-get clean
+    libzip-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip
 
 # Install Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+COPY --from=composer:2.6 /usr/bin/composer /usr/bin/composer
 
-# Install Node.js 20.x and npm
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
+# Set working directory
+WORKDIR /var/www
 
-# Copy application files to the container
+# Copy the Laravel project files into the container
 COPY . .
 
-# Set the correct permissions for Laravel storage and cache directories
-RUN chown -R www-data:www-data /var/www \
-    && chmod -R 755 /var/www/storage /var/www/bootstrap/cache
-
-# Install PHP dependencies, including Laravel Breeze
+# Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Install Laravel Breeze for authentication scaffolding
-RUN composer require laravel/breeze --dev && \
-    php artisan breeze:install blade
+# Set permissions
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
-# Install Node.js dependencies
-RUN npm install
+# Expose port
+EXPOSE 9000
 
-#Installs tailwindcss, postcss, and autoprefixer using npm
-RUN npm install \
-    tailwindcss \
-    postcss \
-    autoprefixer && \
-    npx tailwindcss init
-
-# Adjust permissions for node_modules to allow execution of Vite
-RUN chmod -R 755 node_modules
-
-# Compile assets using Vite
-RUN npm run build
-
-# Clear and cache configurations, routes, and views for better performance
-RUN php artisan config:clear && php artisan config:cache
-RUN php artisan route:clear && php artisan route:cache
-RUN php artisan view:clear && php artisan view:cache
-
-# Ensure the Laravel storage and cache directories are writable
-RUN chmod -R 775 storage bootstrap/cache
-
-# Serve the application on 0.0.0.0 to make it accessible from outside the container
-CMD supervisord -c /etc/supervisor/conf.d/supervisord.conf
-
-# Expose port 8000
-EXPOSE 8000
+CMD ["php-fpm"]
